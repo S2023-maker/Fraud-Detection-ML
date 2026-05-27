@@ -3,15 +3,26 @@ import pickle
 import pandas as pd
 import os
 
-# ── Load Model & Preprocessor ─────────────────────────────────────
+import os
+import pickle
+import streamlit as st
+
+# — Load Model & Preprocessor —
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-with open(os.path.join(BASE_DIR, "model", "preprocessor.pkl"), "rb") as f:
-    preprocessor = pickle.load(f)
+@st.cache_resource
+def load_model():
+    with open(os.path.join(BASE_DIR, "model", "fraud_xgb_model.pkl"), "rb") as f:
+        return pickle.load(f)
 
-with open(os.path.join(BASE_DIR, "model", "fraud_xgb_model.pkl"), "rb") as f:
-    model = pickle.load(f)
-    
+@st.cache_resource
+def load_preprocessor():
+    with open(os.path.join(BASE_DIR, "model", "preprocessor.pkl"), "rb") as f:
+        return pickle.load(f)
+
+model = load_model()
+preprocessor = load_preprocessor()
+
 # ── Page Config ───────────────────────────────────────────────────
 st.set_page_config(page_title="Fraud Detection App", page_icon="🔍", layout="wide")
 
