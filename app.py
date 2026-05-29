@@ -1,92 +1,68 @@
 import streamlit as st
-import pickle
 import pandas as pd
+import pickle
 import os
 
-st.set_page_config(page_title="Fraud Detection App", page_icon="🔍", layout="wide")
+BASE = "C:/Fraud_detection_WebApp/model"
 
 @st.cache_resource
-def load_models():
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(BASE_DIR, "model", "fraud_xgb_model.pkl")
-    preprocessor_path = os.path.join(BASE_DIR, "model", "preprocessor.pkl")
-    with open(preprocessor_path, "rb") as f:
-        preprocessor = pickle.load(f)
-    with open(model_path, "rb") as f:
-        model = pickle.load(f)
-    return preprocessor, model
+def load_artifacts():
+    with open(f"{BASE}/preprocessor.pkl",    "rb") as f: preprocessor = pickle.load(f)
+    with open(f"{BASE}/fraud_xgb_model.pkl", "rb") as f: model        = pickle.load(f)
+    with open(f"{BASE}/threshold.pkl",       "rb") as f: threshold    = pickle.load(f)
+    with open(f"{BASE}/category_info.pkl",   "rb") as f: cats         = pickle.load(f)
+    return preprocessor, model, threshold, cats
 
-preprocessor, model = load_models()
+preprocessor, model, THRESHOLD, cats = load_artifacts()
 
-st.title("🔍 Credit Card Fraud Detection System")
-st.markdown("Fill in the transaction details and click **Predict** to check if the transaction is fraudulent.")
-st.divider()
+st.set_page_config(page_title="Fraud Detection", page_icon="🔍", layout="centered")
+st.title("🔍 Fraud Detection System")
+st.caption(f"Optimized detection threshold: {THRESHOLD:.2f} (tuned for maximum fraud recall)")
 
-st.subheader("📋 Transaction Details")
-col1, col2, col3 = st.columns(3)
+st.subheader("Enter Transaction Details")
 
+col1, col2 = st.columns(2)
 with col1:
-    transaction_amount = st.number_input("💰 Transaction Amount (₹)", min_value=0.0, max_value=500000.0, value=5000.0, step=100.0)
-    time_of_transaction = st.slider("🕐 Time of Transaction (Hour)", min_value=0, max_value=23, value=12)
-    previous_fraudulent_transactions = st.number_input("⚠️ Previous Fraudulent Transactions", min_value=0, max_value=20, value=0, step=1)
-
+    device_used      = st.selectbox("Device Used",       cats["device_used"])
+    location         = st.selectbox("Location",          cats["location"])
+    payment_method   = st.selectbox("Payment Method",    cats["payment_method"])
+    transaction_type = st.selectbox("Transaction Type",  cats["transaction_type"])
 with col2:
-    account_age = st.number_input("📅 Account Age (months)", min_value=0, max_value=600, value=24, step=1)
-    number_of_transactions_last_24h = st.number_input("🔁 Transactions in Last 24 Hours", min_value=0, max_value=100, value=3, step=1)
-    device_used = st.selectbox("💻 Device Used", ["Mobile", "Desktop", "Unknown"])
+    transaction_amount  = st.number_input("Transaction Amount (₹)", min_value=0.0, value=5000.0, step=100.0)
+    time_of_transaction = st.slider("Time of Transaction (Hour 0–23)", 0, 23, 12)
+    previous_fraud      = st.slider("Previous Fraudulent Transactions", 0, 10, 0)
+    account_age         = st.number_input("Account Age (years)", min_value=0, value=3, step=1)
+    txns_24h            = st.number_input("Transactions in Last 24h", min_value=0, value=2, step=1)
 
-with col3:
-    location = st.selectbox("📍 Location", ["Chicago", "Seattle", "New York", "Los Angeles", "Houston", "Phoenix"])
-    payment_method = st.selectbox("💳 Payment Method", ["UPI", "Net Banking", "Debit Card", "Credit Card", "Invalid"])
-    transaction_type = st.selectbox("🔄 Transaction Type", ["Online Purchase", "POS Payment", "Bill Payment", "Fund Transfer"])
+if st.button("🔎 Check Transaction", use_container_width=True, type="primary"):
+    input_df = pd.DataFrame([{
+        "device_used":                      device_used,
+        "location":                         location,
+        "payment_method":                   payment_method,
+        "transaction_type":                 transaction_type,
+        "transaction_amount":               transaction_amount,
+        "time_of_transaction":              time_of_transaction,
+        "previous_fraudulent_transactions": previous_fraud,
+        "account_age":                      account_age,
+        "number_of_transactions_last_24h":  txns_24h,
+    }])
 
-st.divider()
+    processed  = preprocessor.transform(input_df)
+    fraud_prob = model.predict_proba(processed)[0][1]
+    is_fraud   = fraud_prob >= THRESHOLD
 
-if st.button("🔎 Predict Transaction", use_container_width=True, type="primary"):
-    try:
-        input_data = pd.DataFrame([{
-            "device_used": device_used,
-            "location": location,
-            "payment_method": payment_method,
-            "transaction_type": transaction_type,
-            "transaction_amount": transaction_amount,
-            "time_of_transaction": time_of_transaction,
-            "previous_fraudulent_transactions": previous_fraudulent_transactions,
-            "account_age": account_age,
-            "number_of_transactions_last_24h": number_of_transactions_last_24h,
-        }])
+    st.divider()
+    if is_fraud:
+        st.error("🚨 **FRAUDULENT Transaction Detected!**")
+    else:
+        st.success("✅ **Genuine Transaction**")
 
-        processed = preprocessor.transform(input_data)
-        prediction = model.predict(processed)[0]
-        probability = model.predict_proba(processed)[0][1]
+    st.metric("Fraud Probability", f"{fraud_prob * 100:.1f}%")
+    st.progress(float(fraud_prob), text=f"Risk Score: {fraud_prob:.3f}  |  Threshold: {THRESHOLD:.2f}")
 
-        st.subheader("📊 Prediction Result")
-        col_a, col_b, col_c = st.columns(3)
-
-        with col_a:
-            if prediction == 1:
-                st.error("🚨 FRAUDULENT")
-            else:
-                st.success("✅ GENUINE")
-
-        with col_b:
-            st.metric("Fraud Probability", f"{probability * 100:.2f}%")
-
-        with col_c:
-            st.metric("Genuine Probability", f"{(1 - probability) * 100:.2f}%")
-
-        st.progress(float(probability), text=f"Fraud Risk: {probability*100:.2f}%")
-
-        st.subheader("🧭 Risk Level")
-        if probability < 0.3:
-            st.success("🟢 LOW RISK — Transaction looks safe.")
-        elif probability < 0.6:
-            st.warning("🟡 MEDIUM RISK — Transaction needs review.")
-        else:
-            st.error("🔴 HIGH RISK — Likely fraudulent. Block immediately.")
-
-        with st.expander("📄 View Input Summary"):
-            st.dataframe(input_data, use_container_width=True)
-
-    except Exception as e:
-        st.error(f"❌ Prediction failed: {e}")
+    with st.expander("ℹ️ How is this calculated?"):
+        st.write(
+            f"The model assigns a fraud probability of **{fraud_prob*100:.1f}%** to this transaction. "
+            f"Any score at or above **{THRESHOLD*100:.0f}%** is flagged as fraud. "
+            f"This threshold was tuned on your dataset to maximize the detection of real fraud cases (Recall)."
+        )
