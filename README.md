@@ -76,7 +76,7 @@ Fraud Probability
 Risk Level
 
 # Deployment link:  
-[https://fraud-detection-ml-rdta7ro2tr6oj5y4aglvor.streamlit.app/]
+https://fraud-detection-ml-6jeappozwwqbhmyjalwo6ec.streamlit.app/
 
 # 📂 Project Structure
 
