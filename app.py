@@ -3,7 +3,7 @@ import pandas as pd
 import pickle
 import os
 
-BASE = "model"
+BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "model")
 
 @st.cache_resource
 def load_artifacts():
