@@ -3,7 +3,7 @@ import pandas as pd
 import pickle
 import os
 
-BASE = "C:/Fraud_detection_WebApp/model"
+BASE = "model"
 
 @st.cache_resource
 def load_artifacts():
